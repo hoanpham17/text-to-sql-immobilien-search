@@ -106,7 +106,7 @@ def connect_and_load_schema(db_uri):
 
         for schema in all_schemas:
             # Bỏ qua các schema hệ thống phổ biến
-            system_schemas = ['information_schema', 'pg_catalog', 'mysql', 'sys', 'performance_schema', 'temp_tables', 'information_schema']
+            system_schemas = ['information_schema', 'pg_catalog', 'mysql', 'sys', 'performance_schema', 'temp_tables', 'information_schema', 'auth', 'realtime', 'storage', 'vault']
             if schema.lower() in [s.lower() for s in system_schemas]: # So sánh không phân biệt hoa thường
                 print(f"  Skipping system schema: {schema}")
                 continue
