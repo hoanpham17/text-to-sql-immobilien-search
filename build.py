@@ -8,7 +8,7 @@ import json # Cần import json để xử lý dữ liệu JSON mẫu
 from sqlalchemy import create_engine, inspect, text # type: ignore
 from sqlalchemy.exc import SQLAlchemyError, OperationalError # type: ignore
 # SỬA LỖI Ở ĐÂY: Import JSON/JSONB từ dialect postgresql
-from sqlalchemy.dialects.postgresql import JSON, JSONB # Import kiểu dữ liệu JSON/JSONB từ dialect PostgreSQL
+from sqlalchemy.dialects.postgresql import JSON, JSONB # type: ignore # Import kiểu dữ liệu JSON/JSONB từ dialect PostgreSQL
 
 
 # Import các lớp cần thiết từ LangChain Core và các tích hợp LLM
@@ -51,7 +51,7 @@ if 'current_llm_info' not in st.session_state:
 # --- THÊM KEY MỚI CHO GIAI ĐOẠN 4 ---
 if 'query_result_df' not in st.session_state: # Dòng này đã được thêm
      st.session_state.query_result_df = None
-if 'query_error' not in st.session_state: # Dòng này đã được thêm
+if 'query_error' not in st.session_state: # Dòng này đã được thêm...
      st.session_state.query_error = None
 
 
