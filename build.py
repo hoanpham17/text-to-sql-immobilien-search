@@ -756,8 +756,8 @@ st.sidebar.header("Einstellungen")
 st.sidebar.subheader("Datenbankverbindung")
 
 
-default_uri = os.getenv("DATABASE_URI", "postgresql://postgres:123456@localhost:5432/immobilien") 
-#default_uri = os.getenv("DATABASE_URI", "postgresql://postgres.vpxiurybdchpvgvbumtv:213456@aws-0-eu-central-1.pooler.supabase.com:5432/postgres")
+#default_uri = os.getenv("DATABASE_URI", "postgresql://postgres:123456@localhost:5432/immobilien") 
+default_uri = os.getenv("DATABASE_URI", "postgresql://postgres.vpxiurybdchpvgvbumtv:213456@aws-0-eu-central-1.pooler.supabase.com:5432/postgres")
 
 db_uri_input = st.sidebar.text_input(
     "Datenbank-URI eingeben:", 
