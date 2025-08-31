@@ -93,4 +93,4 @@ tzdata==2025.2
 urllib3==2.4.0
 yarl==1.20.1
 zstandard==0.23.0
-ydata_profiling==4.10.0
+ydata_profiling==4.7.0
