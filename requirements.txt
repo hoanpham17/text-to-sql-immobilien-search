@@ -54,6 +54,7 @@ orjson==3.10.18
 packaging==24.2
 pandas==2.3.0
 pillow==11.2.1
+plotly==6.2.0
 propcache==0.3.2
 proto-plus==1.26.1
 protobuf==6.31.1

@@ -3,6 +3,14 @@ import streamlit as st # type: ignore
 import os
 from dotenv import load_dotenv # type: ignore
 import json 
+from visuals import *
+from visuals import tools
+
+import plotly.express as px
+from geopy.geocoders import Nominatim
+from geopy.extra.rate_limiter import RateLimiter
+from langchain_experimental.agents.agent_toolkits import create_pandas_dataframe_agent
+from langchain.agents.agent_types import AgentType
 
 
 from sqlalchemy import create_engine, inspect, text # type: ignore
@@ -15,6 +23,10 @@ from langchain_core.messages import SystemMessage, HumanMessage # type: ignore
 from langchain_core.prompts import HumanMessagePromptTemplate # type: ignore
 from langchain_openai import ChatOpenAI # type: ignore
 from langchain_google_genai import ChatGoogleGenerativeAI # type: ignore
+from langchain.agents import create_openai_tools_agent, AgentExecutor
+from langchain_core.tools import tool
+from langchain_core.prompts import MessagesPlaceholder
+from langchain_core.messages import AIMessage, HumanMessage
 
 # --- Load Environment Variables ---
 load_dotenv()
@@ -50,8 +62,25 @@ if 'query_result_df' not in st.session_state:
      st.session_state.query_result_df = None
 if 'query_error' not in st.session_state: 
      st.session_state.query_error = None
+if 'query_result_df' not in st.session_state:
+     st.session_state.query_result_df = None
+if 'query_error' not in st.session_state:
+     st.session_state.query_error = None
+if 'last_user_query' not in st.session_state:
+    st.session_state.last_user_query = ""
 
+# --- CÁC KEY MỚI CHO VISUALIZATION & DASHBOARD ---
+# Tab 1: Đề xuất
+if 'chart_suggestions' not in st.session_state:
+    st.session_state.chart_suggestions = [] # Danh sách các dict đề xuất từ LLM
+if 'chart_to_display' not in st.session_state:
+    st.session_state.chart_to_display = None # Dict của biểu đồ đang được hiển thị trong Tab 1
 
+# Tab 3: Dashboard
+if 'dashboard_items' not in st.session_state:
+    st.session_state.dashboard_items = [] # Danh sách các widget đã được ghim
+if 'original_dashboard_df' not in st.session_state:
+    st.session_state.original_dashboard_df = None # DataFrame gốc cho dashboard
 
 # --- Phase 1: Connect to Database and Read Schema ---
 
@@ -1070,45 +1099,154 @@ else:
 
 
 # --- Phase 4: Executing SQL ---
-st.subheader("SQL ausführen und Ergebnisse anzeigen") 
+# --- A. SQL Execution and Raw Data Display ---
+st.subheader("SQL ausführen und Ergebnisse anzeigen")
 
 if st.session_state.get('generated_sql'):
     if st.session_state.db_engine:
-        if st.button("SQL ausführen", key="execute_sql_button"): 
-            st.info("Führe SQL-Abfrage aus...") 
-            st.session_state.query_result_df = None 
-            st.session_state.query_error = None 
+        if st.button("SQL ausführen", key="execute_sql_button"):
+            with st.spinner("Führe SQL-Abfrage aus..."):
+                # Reset all analysis-related states for a new query
+                st.session_state.query_result_df = None
+                st.session_state.query_error = None
+                st.session_state.viz_chat_history = []
+                st.session_state.dashboard_items = []
+                st.session_state.original_dashboard_df = None
+                st.session_state.last_fig = None # Ensure this is also cleared
 
-            result_df, error_msg = execute_sql_query(
-                st.session_state.db_engine,
-                st.session_state.generated_sql
-            )
+                result_df, error_msg = execute_sql_query(
+                    st.session_state.db_engine,
+                    st.session_state.generated_sql
+                )
 
-            if error_msg:
-                st.session_state.query_error = error_msg
-                st.error(error_msg)
-            else:
-                st.session_state.query_result_df = result_df
-                st.success("SQL-Abfrage erfolgreich ausgeführt!") 
-
-        # Hiển thị kết quả sau khi thực thi
-        if st.session_state.query_result_df is not None:
+                if error_msg:
+                    st.session_state.query_error = error_msg
+                else:
+                    st.session_state.query_result_df = result_df
+                    st.session_state.original_dashboard_df = result_df.copy() # Save original df for dashboard filters
             
-            num_rows = st.session_state.query_result_df.shape[0]
-            st.markdown(f"##### **Abfrageergebnisse:** Total {num_rows} rows") 
-            
-            if not st.session_state.query_result_df.empty:
-                st.dataframe(st.session_state.query_result_df, use_container_width=True)
+            # Show status message after spinner finishes
+            if st.session_state.query_result_df is not None:
+                st.success("SQL-Abfrage erfolgreich ausgeführt!")
             else:
-                st.info("Die Abfrage hat keine Ergebnisse zurückgegeben.") 
-        elif st.session_state.query_error: 
-            st.error(st.session_state.query_error)
+                st.error(st.session_state.query_error)
 
     else:
-        st.warning("Datenbank nicht verbunden. Bitte verbinden Sie die Datenbank, um SQL auszuführen.") 
+        st.warning("Datenbank nicht verbunden. Bitte verbinden Sie die Datenbank, um SQL auszuführen.")
 else:
-     st.info("Generieren Sie oben eine SQL-Abfrage, um sie auszuführen.") 
+     st.info("Generieren Sie oben eine SQL-Abfrage, um sie auszuführen.")
+
+# Always display the data table if it exists
+if st.session_state.query_result_df is not None:
+    df = st.session_state.query_result_df
+    num_rows = df.shape[0]
+    st.markdown(f"##### **Abfrageergebnisse:** Total {num_rows} rows")
+    
+    if not df.empty:
+
+        st.dataframe(df, use_container_width=True)
+    else:
+        st.info("Die Abfrage hat keine Ergebnisse zurückgegeben.")
+
+# Display error from the last execution attempt
+elif st.session_state.query_error:
+    st.error(st.session_state.query_error)
 
 
+# --- B. Display the Analysis Tabs if there is data ---
+if st.session_state.query_result_df is not None and not st.session_state.query_result_df.empty:
+    df = st.session_state.query_result_df
+    
+    st.markdown("---")
+    st.header("Analyse & Visualisierung")
 
-print("Streamlit app is running. Waiting for user interaction.")
+    # Initialize session states for the tabs if they don't exist
+    if "viz_chat_history" not in st.session_state:
+        st.session_state.viz_chat_history = []
+    if "dashboard_items" not in st.session_state:
+        st.session_state.dashboard_items = []
+
+    tab1, tab2 = st.tabs(["📊 Diagramm erstellen", "📋 Dashboard"])
+
+    # --- TAB 1: Create Chart via Chat ---
+    with tab1:
+        st.subheader("Erstellen Sie ein Diagramm per Chat")
+        
+        # Button to clear the analysis chat
+        if st.button("Neue Analyse starten 🔄", key="clear_viz_chat_button"):
+            st.session_state.viz_chat_history = []
+            st.rerun()
+
+        # Display the entire chat history, including charts
+        for i, message in enumerate(st.session_state.viz_chat_history):
+            role = "user" if isinstance(message, HumanMessage) else "assistant"
+            with st.chat_message(role):
+                st.markdown(message.content)
+                # If the assistant message has a figure, display it
+                if role == "assistant" and "figure" in message.additional_kwargs:
+                    fig_to_show = message.additional_kwargs["figure"]
+                    st.plotly_chart(fig_to_show, use_container_width=True)
+                    
+                    # --- NEW LOGIC: "Add to Dashboard" button for the LAST message only ---
+                    # Check if this is the last message in the history
+                    is_last_message = (i == len(st.session_state.viz_chat_history) - 1)
+                    
+                    if is_last_message and fig_to_show:
+                        # Use columns to align the button to the right
+                        _, col_btn = st.columns([4, 1]) # Adjust ratio if needed
+                        with col_btn:
+                            title = fig_to_show.layout.title.text if fig_to_show.layout.title else "Diagramm"
+                            if st.button("Zum Dashboard hinzufügen", key=f"add_to_dashboard_btn_{i}"):
+                                st.session_state.dashboard_items.append({"title": title, "figure": fig_to_show})
+                                st.toast(f"Diagramm '{title}' zum Dashboard hinzugefügt!", icon="✅")
+
+
+        # The chat input is the LAST element
+        if prompt := st.chat_input("Was möchten Sie visualisieren?"):
+            # Append user message to history
+            st.session_state.viz_chat_history.append(HumanMessage(content=prompt))
+            
+            # Rerun to display the user's message immediately
+            st.rerun()
+
+        # Check if the last message is from the user, then process it
+        if st.session_state.viz_chat_history and isinstance(st.session_state.viz_chat_history[-1], HumanMessage):
+            last_user_prompt = st.session_state.viz_chat_history[-1].content
+            
+            with st.chat_message("assistant"):
+                with st.spinner("Assistent erstellt Diagramm..."):
+                    fig, error_msg = generate_and_execute_chart_code(last_user_prompt, df)
+                    
+                    if error_msg:
+                        response_content = error_msg
+                        st.session_state.viz_chat_history.append(AIMessage(content=response_content))
+                    else:
+                        title = fig.layout.title.text if fig.layout.title and fig.layout.title.text else "Unbenanntes Diagramm"
+                        response_content = f"**{title}**"
+                        # Append assistant's response WITH the figure
+                        st.session_state.viz_chat_history.append(AIMessage(
+                            content=response_content,
+                            additional_kwargs={"figure": fig}
+                        ))
+            
+            # Rerun to display the assistant's new message and chart
+            st.rerun()
+
+    # --- TAB 2: Dashboard ---
+    with tab2:
+        st.subheader("Dein Dashboard")
+        
+        if not st.session_state.dashboard_items:
+            st.info("Ihr Dashboard ist leer.")
+        else:
+            if st.button("Dashboard leeren", key="clear_dashboard_btn"):
+                st.session_state.dashboard_items = []
+                st.rerun()
+            st.markdown("---")
+            
+            dashboard_cols = st.columns(2)
+            for i, item in enumerate(st.session_state.dashboard_items):
+                with dashboard_cols[i % 2]:
+                    with st.container(border=True):
+                        #st.markdown(f"**{item.get('title', '')}**")
+                        st.plotly_chart(item['figure'], use_container_width=True, key=f"dash_chart_{i}")
