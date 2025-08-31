@@ -2,8 +2,6 @@ import streamlit as st
 import pandas as pd
 import json 
 import plotly.express as px
-from geopy.geocoders import Nominatim
-from geopy.extra.rate_limiter import RateLimiter
 from io import StringIO
 from ydata_profiling import ProfileReport
 
