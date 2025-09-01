@@ -7,10 +7,10 @@ from visuals import *
 
 
 import plotly.express as px
-from geopy.geocoders import Nominatim
-from geopy.extra.rate_limiter import RateLimiter
-from langchain_experimental.agents.agent_toolkits import create_pandas_dataframe_agent
-from langchain.agents.agent_types import AgentType
+#from geopy.geocoders import Nominatim
+#from geopy.extra.rate_limiter import RateLimiter
+#from langchain_experimental.agents.agent_toolkits import create_pandas_dataframe_agent
+#from langchain.agents.agent_types import AgentType
 
 
 from sqlalchemy import create_engine, inspect, text # type: ignore
@@ -23,9 +23,9 @@ from langchain_core.messages import SystemMessage, HumanMessage # type: ignore
 from langchain_core.prompts import HumanMessagePromptTemplate # type: ignore
 from langchain_openai import ChatOpenAI # type: ignore
 from langchain_google_genai import ChatGoogleGenerativeAI # type: ignore
-from langchain.agents import create_openai_tools_agent, AgentExecutor
-from langchain_core.tools import tool
-from langchain_core.prompts import MessagesPlaceholder
+#from langchain.agents import create_openai_tools_agent, AgentExecutor
+#from langchain_core.tools import tool
+#from langchain_core.prompts import MessagesPlaceholder
 from langchain_core.messages import AIMessage, HumanMessage
 
 # --- Load Environment Variables ---
