@@ -19,8 +19,8 @@ from langchain_core.messages import AIMessage, HumanMessage
 
 
 # Make sure these imports are at the top of your file
-from langchain_experimental.agents.agent_toolkits import create_pandas_dataframe_agent
-from langchain.agents.agent_types import AgentType
+#from langchain_experimental.agents.agent_toolkits import create_pandas_dataframe_agent
+#from langchain.agents.agent_types import AgentType
 import plotly.express as px
 from io import StringIO
 
