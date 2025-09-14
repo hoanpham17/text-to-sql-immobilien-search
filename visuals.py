@@ -1,3 +1,4 @@
+import ast
 import streamlit as st
 import pandas as pd
 import json 
@@ -136,10 +137,10 @@ def generate_and_execute_chart_code(user_prompt, df, analytical_summary):
         print(f"Code to execute:\n{code_to_execute}")
 
         # Chuẩn bị môi trường để thực thi code
-        local_vars = {"df": df, "px": px, "pd": pd}
+        local_vars = {"df": df, "px": px, "pd": pd, "json": json, "ast": ast }
         
         # Thực thi code
-        exec(code_to_execute, {"px": px, "pd": pd}, local_vars)
+        exec(code_to_execute, {"px": px, "pd": pd, "json": json, "ast": ast}, local_vars)
         
         # Lấy đối tượng figure đã được tạo
         fig = local_vars.get("fig")

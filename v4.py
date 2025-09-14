@@ -70,8 +70,6 @@ if 'last_user_query' not in st.session_state:
     st.session_state.last_user_query = ""
 if 'analytical_summary' not in st.session_state:
     st.session_state.analytical_summary = None
-if 'data_previews' not in st.session_state:
-     st.session_state.data_previews = None
 
 # --- CÁC KEY MỚI CHO VISUALIZATION & DASHBOARD ---
 # Tab 1: Đề xuất
@@ -88,47 +86,7 @@ if 'original_dashboard_df' not in st.session_state:
 
 # --- Phase 1: Connect to Database and Read Schema ---
 
-def get_data_previews(engine, schema_info):
-    """
-    Lấy 10 dòng đầu tiên của mỗi bảng usable và lưu vào một dictionary.
-    Chuyển đổi các cột có kiểu dữ liệu phức tạp (object) sang chuỗi để tránh lỗi hiển thị của Arrow.
 
-    Args:
-        engine: SQLAlchemy engine instance.
-        schema_info (dict): Thông tin schema đã được đọc.
-
-    Returns:
-        dict: Một dictionary với key là "schema.table" và value là DataFrame Pandas.
-    """
-    previews = {}
-    if not schema_info or not engine:
-        return previews
-
-    print("Fetching data previews for usable tables...")
-    for schema_name, tables in schema_info.items():
-        if isinstance(tables, dict):
-            for table_name, columns in tables.items():
-                # Chỉ lấy preview cho các bảng có cột
-                if isinstance(columns, list) and columns:
-                    full_table_name = f"{schema_name}.{table_name}"
-                    try:
-                        
-                        query = text(f'SELECT * FROM "{schema_name}"."{table_name}" LIMIT 10;')
-                        df = pd.read_sql_query(query, engine)
-                    
-                        for col in df.columns:
-                            
-                            if df[col].dtype == 'object':
-                                df[col] = df[col].apply(lambda x: str(x) if x is not None else None)
-                        
-                        previews[full_table_name] = df
-                        print(f"  - Successfully fetched and processed preview for {full_table_name}")
-                    except Exception as e:
-                        print(f"  - Could not fetch preview for {full_table_name}: {e}")
-                        previews[full_table_name] = pd.DataFrame(
-                            {"error": [f"Vorschau konnte nicht geladen werden: {e}"]}
-                        )
-    return previews
 
 def connect_and_load_schema(db_uri):
     """
@@ -338,10 +296,6 @@ def connect_and_load_schema(db_uri):
             return {"message": warning_msg, "warning": True}
 
 
-        
-        st.session_state.data_previews = get_data_previews(engine, st.session_state.schema_info)
-        
-
         print("Database schema loaded successfully!")
         success_msg = "Connection successful and schema loaded!"
         st.success(success_msg) 
@@ -372,8 +326,6 @@ def connect_and_load_schema(db_uri):
              engine.dispose()
         st.error(f"unexpected error: {e}")
         return {"error": f"An unexpected error occurred: {e}"}
-
-
 
 
 # --- LLM models definition ---
@@ -837,8 +789,7 @@ def execute_sql_query(engine, sql_query):
 # --- Streamlit UI ---
 
 st.set_page_config(page_title="Text-to-SQL Chatbot - JSON-Verständnis verbessern", layout="wide") 
-#st.title("Chat with Database") 
-st.markdown("<h1 style='text-align: center; color: black;'>Chat with Database</h1>", unsafe_allow_html=True)
+st.title("Text-to-SQL Chatbot") 
 
 st.sidebar.header("Einstellungen") 
 
@@ -997,56 +948,129 @@ else:
     st.sidebar.warning("LLM nicht initialisiert") 
 
 
-# --- PHẦN UI MỚI: HIỂN THỊ TỔNG QUAN VÀ XEM TRƯỚC DỮ LIỆU ---
-st.subheader("Datenbank-Übersichte") 
+# --- Display Read Schema Information (Main Panel)---
+st.subheader("Schema-Informationen") 
 
+# Safely check schema_info
 if st.session_state.get('schema_info') and isinstance(st.session_state.schema_info, dict):
+    schema_info_to_display = st.session_state.schema_info
+    if schema_info_to_display:
+        
 
-    DATABASE_OVERVIEW_TEXT = """
+        # Prepare the schema list with the number of usable tables.
+        # schema_options will be a list of schema names (e.g., raw, public, ...).
+        # schema_format_map will map the schema name to the display string.
+        schema_options_for_selectbox = []
+        schema_format_map = {}
+        for s_name, s_tables in schema_info_to_display.items():
+            if isinstance(s_tables, dict):
+                
+                num_usable_tables_in_schema = len([
+                    t_name for t_name, cols in s_tables.items()
+                    if isinstance(cols, list) and cols 
+                ])
+                
+                if num_usable_tables_in_schema > 0:
+                    schema_options_for_selectbox.append(s_name)
+                    schema_format_map[s_name] = f"{s_name} ({num_usable_tables_in_schema} Tabellen)" 
 
-   Entdecken Sie mit mir den deutschen Immobilienmarkt. Diese Datenbank wird mit Daten von **immobilienscout24.de** gespeist und bietet Ihnen tiefe Einblicke in Kauf- und Mietobjekte.
+        # Selectbox for Schema
+        initial_schema_index = 0 if len(schema_options_for_selectbox) > 0 else None
+        selected_schema_name = st.selectbox(
+            "Schema auswählen:", 
+            schema_options_for_selectbox,
+            index=initial_schema_index,
+            format_func=lambda s: schema_format_map.get(s, s), 
+            key="schema_selection",
+            help="Wählen Sie ein Datenbankschema." 
+        )
 
-**Was dieser Chatbot für Sie tun kann:**
+        
+        selected_table_name = None
+        usable_tables_in_schema = {} 
 
-*   🗣️ **Einfach chatten:** Stellen Sie Ihre Fragen in natürlicher Sprache. Ich finde die passenden Immobilien für Sie, ohne dass Sie technisches Wissen benötigen.
-    
-*   🤖 **SQL-Frage (Text-to-SQL):** Haben Sie komplexe Anforderungen? Beschreiben Sie, was Sie suchen, und ich erstelle für Sie die passende SQL-Abfrage. Filtern und kombinieren Sie Bedingungen wie Preis, Zimmeranzahl, Postleitzahl (PLZ), Fläche, Maklergebühren und mehr.
+        if selected_schema_name and selected_schema_name in schema_info_to_display:
+            current_schema_tables = schema_info_to_display[selected_schema_name]
 
-*   📊 **Chat-to-Visualization (Demnächst verfügbar):** Verwandeln Sie trockene Daten in anschauliche Diagramme und Grafiken. Diese Funktion hilft Ihnen, Markttrends und Vergleiche auf einen Blick zu erfassen.
-
-*   📋 **Datenvorschau (unten):** Die folgenden Registerkarten zeigen eine Vorschau der ersten 10 Zeilen jeder Tabelle. So bekommen Sie ein besseres Gefühl für die Daten und die Struktur, mit der wir arbeiten.
-
-**Legen Sie los! Stellen Sie Ihre Frage unten.**
-    """
-    st.info(DATABASE_OVERVIEW_TEXT)
-
-   
-    if st.session_state.get('data_previews') and isinstance(st.session_state.data_previews, dict):
-        previews_to_display = st.session_state.data_previews
-        if previews_to_display:
             
-            tab_names = list(previews_to_display.keys())
-            
-            
-            tabs = st.tabs(tab_names)
+            usable_tables_in_schema = {
+                 t_name: cols for t_name, cols in current_schema_tables.items()
+                 if isinstance(cols, list) and cols 
+            }
 
-            
-            for tab, table_name in zip(tabs, tab_names):
-                with tab:
-                    st.markdown(f"**Vorschau der ersten 10 Zeilen von `{table_name}`**")
-                    df_preview = previews_to_display[table_name]
+            if usable_tables_in_schema:
+                
+                
+                table_options_for_selectbox = []
+                table_format_map = {}
+                for t_name, t_cols in usable_tables_in_schema.items():
+                    num_columns = len(t_cols)
+                    table_options_for_selectbox.append(t_name)
+                    table_format_map[t_name] = f"{t_name} ({num_columns} Spalten)" 
+
+                
+                initial_table_index = 0 if len(table_options_for_selectbox) > 0 else None
+                selected_table_name = st.selectbox(
+                    "Tabelle auswählen:", 
+                    table_options_for_selectbox, 
+                    index=initial_table_index,
+                    format_func=lambda t: table_format_map.get(t, t), 
+                    key="table_selection",
+                     help="Wählen Sie eine Tabelle im ausgewählten Schema." 
+                )
+
+                if selected_table_name and selected_table_name in usable_tables_in_schema:
                     
-                    
-                    st.dataframe(df_preview, use_container_width=True, height=350) 
-        else:
-            st.warning("Keine Datenvorschau verfügbar. Möglicherweise enthalten die Tabellen keine Daten.") # Thông báo nếu không có preview
-    else:
- 
-        st.warning("Datenvorschau wird geladen oder konnte nicht abgerufen werden.")
+                    columns_of_selected_table = usable_tables_in_schema[selected_table_name]
 
-else:
-   
-    st.info("Bitte geben Sie die Datenbank-URI ein und klicken Sie auf 'Verbinden & Schema lesen', um zu beginnen.")
+                    with st.expander(f"Details zur Tabelle **`{selected_schema_name}.{selected_table_name}`**", expanded=False): 
+
+                        
+                        st.markdown("#### Spalteninformationen:") 
+
+                        # Create DataFrame with basic information columns
+                        columns_df = pd.DataFrame(columns_of_selected_table)
+                        cols_to_display_order = ['name', 'type', 'primary_key', 'nullable', 'default', 'autoincrement']
+                        cols_to_display_filtered = [col for col in columns_df.columns if col in cols_to_display_order]
+
+                        # Display DataFrame
+                        if not columns_df.empty and cols_to_display_filtered:
+                            st.dataframe(columns_df[cols_to_display_filtered], use_container_width=True)
+                        elif not columns_df.empty and not cols_to_display_filtered:
+                            st.write("Keine der Standardspalteninformationen (PK, NOT NULL, DEFAULT, AUTO) für diese Tabelle.") 
+                        else: 
+                            st.write("Spalteninformationen für diese Tabelle konnten nicht gelesen werden.") 
+
+                        # --- Display JSON summary ---
+                        json_cols_summaries = {
+                            col.get('name'): col.get('json_structure_summary')
+                            for col in columns_of_selected_table if isinstance(col, dict) and col.get('json_structure_summary')
+                        }
+
+                        if json_cols_summaries:
+                            st.markdown("**Details zu JSON-Spalten:**") 
+                            for col_name, summary in json_cols_summaries.items():
+                                if col_name and summary:
+                                    st.write(f"**Spalte `{col_name}`:**") 
+                                    st.text(summary)
+                                    st.markdown("<hr style='border: 1px dashed #666; width: 50%; margin: 1em 0;'>", unsafe_allow_html=True)
+
+
+                else: 
+                     st.info(f"Keine nutzbaren Tabellen im Schema **`{selected_schema_name}`** gefunden.") 
+                     selected_table_name = None 
+            else: 
+                 st.info("Keine nutzbaren Schemata in der Datenbank gefunden.") 
+                 selected_schema_name = None 
+
+    else: 
+         st.warning("Verbindung erfolgreich, aber keine nutzbaren Schemata oder Tabellen außerhalb der Systemschemata gefunden.") 
+
+else: 
+    st.info("Bitte geben Sie die Datenbank-URI ein und klicken Sie auf 'Verbinden & Schema lesen', um zu beginnen.") 
+
+
+
 
 # --- Create SQL (UI for User Query)  ---
 st.subheader("SQL - Frage") 
@@ -1058,7 +1082,7 @@ elif st.session_state.get('chat_llm') is None:
     st.warning("Bitte initialisieren Sie das LLM, bevor Sie fragen.") 
 else:
     user_query = st.text_area(
-        "Geben Sie Ihre Frage zu den Daten ein (z.B.: 'haus kaufen, würzburg, display: id, title, plz, zimmeranzahl, preis'):", # Dịch
+        "Geben Sie Ihre Frage zu den Daten ein (z.B.: 'Listen Sie die 5 Adressen und höchsten Mietpreise aus der Tabelle haus_mieten_test im Schema raw auf'):", # Dịch
         key="user_query_input", 
         height=100
     )
