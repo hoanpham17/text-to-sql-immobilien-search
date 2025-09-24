@@ -27,7 +27,6 @@ from io import StringIO
 
 # --- HELPER FUNCTIONS FOR VISUALIZATION (PHASE 5) ---
 
-# Cập nhật hàm này
 
 def generate_and_execute_chart_code(user_prompt, df, analytical_summary):
     """
@@ -36,14 +35,14 @@ def generate_and_execute_chart_code(user_prompt, df, analytical_summary):
     if st.session_state.chat_llm is None:
         return None, "LLM not initialized."
 
-    # Tạo một bản tóm tắt DataFrame cho prompt
+    # Analyze DataFrame for prompting
     from io import StringIO
     buffer = StringIO()
     df.info(buf=buffer)
     df_info = buffer.getvalue()
     df_head_markdown = df.head().to_markdown(index=False)
     
-    # --- PROMPT MỚI, TỐI ƯU HƠN ---
+   
     prompt_template = ChatPromptTemplate.from_messages([
         SystemMessage(content=(
             "You are a highly advanced Python data visualization assistant, specializing in **real estate data analysis**. Your task is to analyze a user's request and, if it is relevant to the provided data, write Python code to generate a single Plotly figure. The DataFrame is available in the execution environment under the variable name 'df'. All text generated, especially chart titles, must be in German."
@@ -111,7 +110,7 @@ def generate_and_execute_chart_code(user_prompt, df, analytical_summary):
     formatted_prompt = prompt_template.format_messages(
         user_prompt=user_prompt,
         analytical_summary=analytical_summary,
-        column_names=df.columns.tolist(), # Cung cấp list tên cột
+        column_names=df.columns.tolist(), 
         df_head_markdown=df_head_markdown
     )
 
@@ -122,12 +121,12 @@ def generate_and_execute_chart_code(user_prompt, df, analytical_summary):
 
         print(f"LLM Code Generation Output:\n{llm_output}")
 
-        # --- KIỂM TRA XEM LLM CÓ TỪ CHỐI KHÔNG ---
+
         if llm_output.startswith("REJECTED:"):
             rejection_message = llm_output.replace("REJECTED:", "").strip()
             return None, rejection_message
 
-        # Trích xuất code từ khối markdown
+        # Get code from markdown block
         code_to_execute = llm_output
         code_block_start = code_to_execute.find("```python")
         code_block_end = code_to_execute.rfind("```")
@@ -136,13 +135,13 @@ def generate_and_execute_chart_code(user_prompt, df, analytical_summary):
         
         print(f"Code to execute:\n{code_to_execute}")
 
-        # Chuẩn bị môi trường để thực thi code
+        # Prepare environment for Code Executing
         local_vars = {"df": df, "px": px, "pd": pd, "json": json, "ast": ast }
         
-        # Thực thi code
+        # Execute code
         exec(code_to_execute, {"px": px, "pd": pd, "json": json, "ast": ast}, local_vars)
         
-        # Lấy đối tượng figure đã được tạo
+        # get figure 
         fig = local_vars.get("fig")
 
         if fig:

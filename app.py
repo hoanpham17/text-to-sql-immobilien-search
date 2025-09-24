@@ -108,7 +108,7 @@ def get_data_previews(engine, schema_info):
     for schema_name, tables in schema_info.items():
         if isinstance(tables, dict):
             for table_name, columns in tables.items():
-                # Chỉ lấy preview cho các bảng có cột
+                
                 if isinstance(columns, list) and columns:
                     full_table_name = f"{schema_name}.{table_name}"
                     try:
