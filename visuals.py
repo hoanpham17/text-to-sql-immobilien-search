@@ -60,7 +60,7 @@ def generate_and_execute_chart_code(user_prompt, df, analytical_summary):
             
             - Synthesize and understand data consistently, From this ask yourself: "Is the user's request a plausible analysis or visualization of THIS specific data?"
             
-            - If the request is irrelevant (e.g., asks about the weather, stock prices,... or columns, values,... that don't exist), you MUST respond with a polite refusal in German. Start your response with "REJECTED:" followed by the explanation. Example: "REJECTED: Ihre Anfrage scheint sich nicht auf die bereitgestellten Immobiliendaten zu beziehen."
+            - If the request is irrelevant (e.g., asks about the weather, stock prices,...), you MUST respond with a polite refusal in German. Start your response with "REJECTED:" followed by the explanation. Example: "REJECTED: Ihre Anfrage scheint sich nicht auf die bereitgestellten Immobiliendaten zu beziehen."
             - If the request is relevant, proceed to the next steps.
 
             **Step 2: Understand Column Semantics (Context).**
